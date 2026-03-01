@@ -4,130 +4,48 @@
 
 set -euo pipefail
 
-# 颜色定义
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
-
-# 检查结果标志
+R='\033[0;31m' G='\033[0;32m' Y='\033[1;33m' N='\033[0m'
 ALL_OK=true
 
+# Why: 抽取重复的二进制检查逻辑，减少代码重复
+check_bin() {
+    local name=$1
+    echo "$2. 检查 $name..."
+    if command -v "$name" &>/dev/null; then
+        echo -e "   ${G}✓${N} $(which "$name")"
+    elif [ -x "./bin/$name" ]; then
+        echo -e "   ${G}✓${N} ./bin/$name"
+    else
+        echo -e "   ${R}✗${N} 未找到 $name"
+        ALL_OK=false
+    fi
+}
+
 echo "🔍 TXLock 环境检查"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo ""
+check_bin txlock-enc 1
+check_bin txlock-dec 2
 
-# 1. 检查 txlock-enc 二进制
-echo "1. 检查 txlock-enc..."
-if command -v txlock-enc &> /dev/null; then
-    ENC_PATH=$(which txlock-enc)
-    echo -e "   ${GREEN}✓${NC} 找到: $ENC_PATH"
-elif [ -x "./bin/txlock-enc" ]; then
-    echo -e "   ${GREEN}✓${NC} 找到: ./bin/txlock-enc (项目本地)"
-else
-    echo -e "   ${RED}✗${NC} 未找到 txlock-enc"
-    ALL_OK=false
-fi
-
-# 2. 检查 txlock-dec 二进制
-echo "2. 检查 txlock-dec..."
-if command -v txlock-dec &> /dev/null; then
-    DEC_PATH=$(which txlock-dec)
-    echo -e "   ${GREEN}✓${NC} 找到: $DEC_PATH"
-elif [ -x "./bin/txlock-dec" ]; then
-    echo -e "   ${GREEN}✓${NC} 找到: ./bin/txlock-dec (项目本地)"
-else
-    echo -e "   ${RED}✗${NC} 未找到 txlock-dec"
-    ALL_OK=false
-fi
-
-# 3. 读取配置文件（如果存在）
+# Why: 从配置文件读取环境变量名，无配置则用默认值
 MNEMONIC_ENV="MNEM"
-CONFIG_FILE=".claude/skills/txlock/config"
+CFG=".claude/skills/txlock/config"
+[ -f "$CFG" ] && MNEMONIC_ENV=$(grep "^MNEMONIC_ENV=" "$CFG" 2>/dev/null | cut -d'=' -f2 || echo "MNEM")
 
-if [ -f "$CONFIG_FILE" ]; then
-    echo "3. 读取配置文件..."
-    echo -e "   ${GREEN}✓${NC} 找到配置: $CONFIG_FILE"
-
-    # 读取 MNEMONIC_ENV
-    if grep -q "^MNEMONIC_ENV=" "$CONFIG_FILE"; then
-        MNEMONIC_ENV=$(grep "^MNEMONIC_ENV=" "$CONFIG_FILE" | cut -d'=' -f2)
-        echo "   环境变量名: $MNEMONIC_ENV"
-    fi
-else
-    echo "3. 配置文件..."
-    echo -e "   ${YELLOW}⚠${NC}  未找到配置文件（使用默认值）"
-    echo "   环境变量名: $MNEMONIC_ENV (默认)"
-fi
-
-# 4. 检查助记词环境变量
-echo "4. 检查助记词环境变量..."
+echo "3. 检查助记词环境变量 \$$MNEMONIC_ENV..."
 if [ -n "${!MNEMONIC_ENV:-}" ]; then
-    MNEM_LENGTH=${#!MNEMONIC_ENV}
-    echo -e "   ${GREEN}✓${NC} 环境变量 \$$MNEMONIC_ENV 已设置 (长度: $MNEM_LENGTH)"
+    echo -e "   ${G}✓${N} 已设置 (${#!MNEMONIC_ENV} 字符)"
 else
-    echo -e "   ${RED}✗${NC} 环境变量 \$$MNEMONIC_ENV 未设置"
+    echo -e "   ${R}✗${N} 未设置"
     ALL_OK=false
 fi
 
-echo ""
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-
-# 输出最终结果
+# Why: 简洁输出结果，失败时仅提供核心修复命令
 if [ "$ALL_OK" = true ]; then
-    echo -e "${GREEN}✅ 环境检查通过，可以使用 TXLock${NC}"
+    echo -e "\n${G}✅ 环境就绪${N}"
     exit 0
-else
-    echo -e "${RED}❌ 环境检查失败，请按照以下指引修复${NC}"
-    echo ""
-
-    # 提供修复指引
-    if ! command -v txlock-enc &> /dev/null && [ ! -x "./bin/txlock-enc" ]; then
-        echo "📦 安装 TXLock 二进制："
-        echo ""
-        echo "方式1：从源码编译（推荐）"
-        echo "────────────────────────────────"
-        echo "git clone https://github.com/vcvvvc/TXLock.git"
-        echo "cd TXLock"
-        echo "go build -o ./bin/txlock-enc ./cmd/txlock-enc"
-        echo "go build -o ./bin/txlock-dec ./cmd/txlock-dec"
-        echo ""
-        echo "# 选项A：全局安装"
-        echo "sudo install -m 0755 bin/txlock-enc /usr/local/bin/"
-        echo "sudo install -m 0755 bin/txlock-dec /usr/local/bin/"
-        echo ""
-        echo "# 选项B：在当前项目使用"
-        echo "mkdir -p ./bin"
-        echo "cp TXLock/bin/txlock-* ./bin/"
-        echo ""
-        echo "方式2：下载预编译版本"
-        echo "────────────────────────────────"
-        echo "访问 https://github.com/vcvvvc/TXLock/releases"
-        echo ""
-    fi
-
-    if [ -z "${!MNEMONIC_ENV:-}" ]; then
-        echo "🔐 设置助记词环境变量："
-        echo ""
-        echo "临时设置（当前会话）："
-        echo "────────────────────────────────"
-        echo "export $MNEMONIC_ENV=\"your twelve word mnemonic phrase here\""
-        echo ""
-        echo "持久化设置（推荐）："
-        echo "────────────────────────────────"
-        echo "# 创建 ~/.txlock-env.sh"
-        echo "cat > ~/.txlock-env.sh << 'EOF'"
-        echo "#!/bin/bash"
-        echo "export $MNEMONIC_ENV=\"your twelve word mnemonic phrase here\""
-        echo "EOF"
-        echo ""
-        echo "# 设置权限"
-        echo "chmod 600 ~/.txlock-env.sh"
-        echo ""
-        echo "# 使用前加载"
-        echo "source ~/.txlock-env.sh"
-        echo ""
-    fi
-
-    exit 1
 fi
+
+echo -e "\n${R}❌ 环境缺失${N}"
+command -v txlock-enc &>/dev/null || echo "修复: go build -o ./bin/txlock-enc ./cmd/txlock-enc"
+command -v txlock-dec &>/dev/null || echo "修复: go build -o ./bin/txlock-dec ./cmd/txlock-dec"
+[ -z "${!MNEMONIC_ENV:-}" ] && echo "修复: export $MNEMONIC_ENV=\"your mnemonic phrase\""
+exit 1

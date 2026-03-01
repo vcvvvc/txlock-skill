@@ -74,7 +74,7 @@ txlock-dec -in <file> -mnemonic-env <MNEMONIC_ENV> -index <index>
 
 提示设置方法：
 - 临时：`export <MNEMONIC_ENV>="..."`
-- 持久：创建`~/.txlock-env.sh`（权限600）
+- 持久：询问是否自动创建`~/.txlock-env.sh`（权限600）
 
 ### 文件不存在
 
