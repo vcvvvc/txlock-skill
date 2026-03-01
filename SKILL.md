@@ -72,7 +72,7 @@ txlock-dec -in <file> -mnemonic-env <MNEMONIC_ENV> -index <index>
 
 ### 环境变量未设置
 
-提示设置方法：
+必须完整提示两种设置方法：
 - 临时：`export <MNEMONIC_ENV>="..."`
 - 持久：询问是否自动创建`~/.txlock-env.sh`（权限600）
 
